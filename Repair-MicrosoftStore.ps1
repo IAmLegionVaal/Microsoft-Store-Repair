@@ -14,6 +14,7 @@ $ErrorActionPreference='Stop'
 $runPath=Join-Path $LogRoot (Get-Date -Format 'yyyyMMdd_HHmmss')
 $warnings=New-Object System.Collections.Generic.List[string]
 $transcript=$false
+$packageNames=@('Microsoft.WindowsStore','Microsoft.DesktopAppInstaller')
 
 function Test-Admin{
     $id=[Security.Principal.WindowsIdentity]::GetCurrent()
@@ -27,6 +28,12 @@ function Get-TargetPackage{
         $package=Get-AppxPackage -AllUsers -Name $PackageName -ErrorAction SilentlyContinue|Select-Object -First 1
     }
     $package
+}
+
+function Get-ReportedPackage{
+    foreach($name in $script:packageNames){
+        Get-AppxPackage -Name $name -ErrorAction SilentlyContinue
+    }
 }
 
 function Register-Package{
@@ -51,8 +58,7 @@ try{
     Start-Transcript -Path (Join-Path $runPath 'Transcript.txt') -Force|Out-Null
     $transcript=$true
 
-    Get-AppxPackage -Name Microsoft.WindowsStore,Microsoft.DesktopAppInstaller -ErrorAction SilentlyContinue|
-        Select-Object Name,Version,Status,InstallLocation,PackageFullName|
+    Get-ReportedPackage|Select-Object Name,Version,Status,InstallLocation,PackageFullName|
         Export-Csv (Join-Path $runPath 'Packages-Before.csv') -NoTypeInformation
 
     Get-Service ClipSVC,AppXSvc,InstallService -ErrorAction SilentlyContinue|
@@ -80,7 +86,7 @@ try{
         Invoke-WingetSource 'WingetSourceUpdate' @('source','update','--disable-interactivity')
     }
 
-    $afterPackages=@(Get-AppxPackage -Name Microsoft.WindowsStore,Microsoft.DesktopAppInstaller -ErrorAction SilentlyContinue)
+    $afterPackages=@(Get-ReportedPackage)
     $afterPackages|Select-Object Name,Version,Status,InstallLocation,PackageFullName|
         Export-Csv (Join-Path $runPath 'Packages-After.csv') -NoTypeInformation
     Get-Service ClipSVC,AppXSvc,InstallService -ErrorAction SilentlyContinue|
